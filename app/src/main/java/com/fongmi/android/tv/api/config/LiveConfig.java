@@ -94,7 +94,7 @@ public class LiveConfig {
     }
 
     public void load(Callback callback) {
-        App.execute(() -> loadConfig(callback));
+        App.execute(() -> load(callback, false));
     }
 
     private void loadConfig(Callback callback) {
@@ -102,12 +102,31 @@ public class LiveConfig {
             parseConfig(Decoder.getJson(config.getUrl()), callback);
         } catch (Throwable e) {
             if (TextUtils.isEmpty(config.getUrl())) App.post(() -> callback.error(""));
-            else App.post(() -> callback.error(Notify.getError(R.string.error_config_get, e)));
+            else loadCache(callback, e);
             e.printStackTrace();
         }
     }
 
+    public void load(Callback callback, boolean cache) {
+        if (cache) App.execute(() -> loadConfigCache(callback));
+        else App.execute(() -> loadConfig(callback));
+    }
+
+    private void loadCache(Callback callback, Throwable e) {
+        if (!TextUtils.isEmpty(config.getJson())) parseConfig(config.getJson(), callback);
+        else App.post(() -> callback.error(Notify.getError(R.string.error_config_get, e)));
+    }
+
+    private void loadConfigCache(Callback callback) {
+        if (!TextUtils.isEmpty(config.getJson()) && config.isCache())
+            parseConfig(config.getJson(), callback);
+        else loadConfig(callback);
+    }
+
     private void parseConfig(String text, Callback callback) {
+        if (text == null || text.isEmpty()) {
+            throw new IllegalArgumentException("text is empty");
+        }
         if (Json.invalid(text)) {
             parseText(text, callback);
         } else {
@@ -121,6 +140,7 @@ public class LiveConfig {
         getLives().remove(live);
         getLives().add(live);
         setHome(live, true);
+        config.json(text).save();
         App.post(callback::success);
     }
 
@@ -145,9 +165,10 @@ public class LiveConfig {
 
     private void parseConfig(JsonObject object, Callback callback) {
         List<JsonElement> lives = Json.safeListElement(object, "lives");
-        if (lives.size() > 0) for (JsonElement element : lives) add(Live.objectFrom(element).check());
+        if (!lives.isEmpty()) for (JsonElement element : lives) add(Live.objectFrom(element).check());
         for (Live live : getLives()) if (live.getName().equals(config.getHome())) setHome(live, true);
         if (home == null) setHome(getLives().isEmpty() ? new Live() : getLives().get(0), true);
+        config.json(object.toString()).save();
         if (callback != null) App.post(callback::success);
     }
 

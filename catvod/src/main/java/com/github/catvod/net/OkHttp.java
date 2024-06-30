@@ -14,15 +14,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-import okhttp3.Cache;
-import okhttp3.Call;
-import okhttp3.Dns;
-import okhttp3.FormBody;
-import okhttp3.Headers;
-import okhttp3.HttpUrl;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
+import okhttp3.*;
 import okhttp3.dnsoverhttps.DnsOverHttps;
 
 public class OkHttp {
@@ -88,8 +80,11 @@ public class OkHttp {
     }
 
     public static String string(String url) {
-        try {
-            return url.startsWith("http") ? newCall(url).execute().body().string() : "";
+        try (Response execute = newCall(url).execute()) {
+            if(execute.isSuccessful()) {
+                return url.startsWith("http") ? execute.body().string() : "";
+            }
+            throw new IllegalStateException("http not success");
         } catch (Exception e) {
             e.printStackTrace();
             return "";
@@ -137,7 +132,8 @@ public class OkHttp {
 
     private static HttpUrl buildUrl(String url, ArrayMap<String, String> params) {
         HttpUrl.Builder builder = Objects.requireNonNull(HttpUrl.parse(url)).newBuilder();
-        for (Map.Entry<String, String> entry : params.entrySet()) builder.addQueryParameter(entry.getKey(), entry.getValue());
+        for (Map.Entry<String, String> entry : params.entrySet())
+            builder.addQueryParameter(entry.getKey(), entry.getValue());
         return builder.build();
     }
 
